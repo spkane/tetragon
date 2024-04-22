@@ -390,6 +390,9 @@ func tetragonExecute() error {
 		return err
 	}
 
+	// needs BTF, so caling it after InitCachedBTF
+	log.Info("BPF detected features: ", bpf.LogFeatures())
+
 	if err := observer.InitDataCache(option.Config.DataCacheSize); err != nil {
 		return err
 	}
