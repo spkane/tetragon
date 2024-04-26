@@ -117,6 +117,9 @@ type Program struct {
 
 	Link link.Link
 	Prog *ebpf.Program
+
+	// policy name the program belongs to
+	Policy string
 }
 
 func (p *Program) SetRetProbe(ret bool) *Program {
@@ -131,6 +134,11 @@ func (p *Program) SetLoaderData(d interface{}) *Program {
 
 func (p *Program) SetAttachData(d interface{}) *Program {
 	p.AttachData = d
+	return p
+}
+
+func (p *Program) SetPolicy(policy string) *Program {
+	p.Policy = policy
 	return p
 }
 
