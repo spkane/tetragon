@@ -116,6 +116,7 @@ type Program struct {
 	RewriteConstants map[string]interface{}
 
 	Link link.Link
+	Prog *ebpf.Program
 }
 
 func (p *Program) SetRetProbe(ret bool) *Program {
