@@ -120,6 +120,7 @@ type Program struct {
 	KernelTypes *btf.Spec
 
 	Link link.Link
+	Prog *ebpf.Program
 }
 
 func (p *Program) SetRetProbe(ret bool) *Program {
