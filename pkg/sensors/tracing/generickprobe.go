@@ -359,8 +359,8 @@ func createMultiKprobeSensor(multiIDs []idtable.EntryID, has hasMaps) ([]*progra
 	enforcerDataMap := enforcerMap(load)
 	if has.enforcer {
 		enforcerDataMap.SetMaxEntries(enforcerMapMaxEntries)
+		maps = append(maps, enforcerDataMap)
 	}
-	maps = append(maps, enforcerDataMap)
 
 	filterMap.SetMaxEntries(len(multiIDs))
 	configMap.SetMaxEntries(len(multiIDs))
@@ -940,8 +940,8 @@ func createKprobeSensorFromEntry(kprobeEntry *genericKprobe,
 	enforcerDataMap := enforcerMap(load)
 	if has.enforcer {
 		enforcerDataMap.SetMaxEntries(enforcerMapMaxEntries)
+		maps = append(maps, enforcerDataMap)
 	}
-	maps = append(maps, enforcerDataMap)
 
 	if kprobeEntry.loadArgs.retprobe {
 		loadret := program.Builder(
