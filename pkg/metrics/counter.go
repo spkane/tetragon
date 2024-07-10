@@ -7,6 +7,8 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
+type initCounterFunc func(*prometheus.CounterVec)
+
 // NewCounterVecWithPod is a wrapper around prometheus.NewCounterVec that also
 // registers the metric to be cleaned up when a pod is deleted.
 //
@@ -37,7 +39,7 @@ func NewCounterVecWithPodV2(opts prometheus.CounterVecOpts) *prometheus.CounterV
 type GranularCounter[L FilteredLabels] struct {
 	metric      *prometheus.CounterVec
 	constrained bool
-	initFunc    func()
+	initFunc    initCounterFunc
 	initForDocs func()
 }
 
@@ -56,8 +58,9 @@ type GranularCounter[L FilteredLabels] struct {
 //     same thing in different formats, or two labels are mutually exclusive).
 //   - metric is unconstrained, but some of the unconstrained label values are
 //     known beforehand, so can be initialized.
-//   - you want to disable default initialization - pass func() {} in such case
-func NewGranularCounter[L FilteredLabels](opts Opts, init func()) (*GranularCounter[L], error) {
+//   - you want to disable default initialization - pass
+//     func(*prometheus.CounterVec) {} in such case
+func NewGranularCounter[L FilteredLabels](opts Opts, init initCounterFunc) (*GranularCounter[L], error) {
 	labels, constrained, err := getVariableLabels[L](&opts)
 	if err != nil {
 		return nil, err
@@ -85,9 +88,12 @@ func NewGranularCounter[L FilteredLabels](opts Opts, init func()) (*GranularCoun
 		metric.WithLabelValues(lvs...).Add(0)
 	}
 
-	// if metric is constrained, default to initializing all combinations of labels
+	// If metric is constrained, default to initializing all combinations of
+	// labels. Note that in such case the initialization function doesn't
+	// reference the wrapped metric passed as an argument because this metric
+	// is captured already in initMetric closure.
 	if constrained && init == nil {
-		init = func() {
+		init = func(_ *prometheus.CounterVec) {
 			initAllCombinations(initMetric, opts.ConstrainedLabels)
 		}
 	}
@@ -125,7 +131,7 @@ func MustNewGranularCounter[L FilteredLabels](promOpts prometheus.CounterOpts, e
 
 // MustNewGranularCounterWithInit is a convenience function that wraps
 // NewGranularCounter and panics on error.
-func MustNewGranularCounterWithInit[L FilteredLabels](opts Opts, init func()) *GranularCounter[L] {
+func MustNewGranularCounterWithInit[L FilteredLabels](opts Opts, init initCounterFunc) *GranularCounter[L] {
 	metric, err := NewGranularCounter[L](opts, init)
 	if err != nil {
 		panic(err)
@@ -151,7 +157,7 @@ func (m *GranularCounter[L]) IsConstrained() bool {
 // Init implements CollectorWithInit.
 func (m *GranularCounter[L]) Init() {
 	if m.initFunc != nil {
-		m.initFunc()
+		m.initFunc(m.metric)
 	}
 }
 
@@ -188,7 +194,7 @@ type Counter struct {
 // NewCounter creates a new Counter.
 //
 // See NewGranularCounter for usage notes.
-func NewCounter(opts Opts, init func()) (*Counter, error) {
+func NewCounter(opts Opts, init initCounterFunc) (*Counter, error) {
 	metric, err := NewGranularCounter[NilLabels](opts, init)
 	if err != nil {
 		return nil, err
@@ -198,7 +204,7 @@ func NewCounter(opts Opts, init func()) (*Counter, error) {
 
 // MustNewCounter is a convenience function that wraps NewCounter and panics on
 // error.
-func MustNewCounter(opts Opts, init func()) *Counter {
+func MustNewCounter(opts Opts, init initCounterFunc) *Counter {
 	metric, err := NewCounter(opts, init)
 	if err != nil {
 		panic(err)

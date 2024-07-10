@@ -7,6 +7,8 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
+type initGaugeFunc func(*prometheus.GaugeVec)
+
 // NewGaugeVecWithPod is a wrapper around prometheus.NewGaugeVec that also
 // registers the metric to be cleaned up when a pod is deleted.
 //
@@ -35,14 +37,14 @@ func NewGaugeVecWithPodV2(opts prometheus.GaugeVecOpts) *prometheus.GaugeVec {
 type GranularGauge[L FilteredLabels] struct {
 	metric      *prometheus.GaugeVec
 	constrained bool
-	initFunc    func()
+	initFunc    initGaugeFunc
 	initForDocs func()
 }
 
 // NewGranularGauge creates a new GranularGauge.
 //
 // See NewGranularCounter for usage notes.
-func NewGranularGauge[L FilteredLabels](opts Opts, init func()) (*GranularGauge[L], error) {
+func NewGranularGauge[L FilteredLabels](opts Opts, init initGaugeFunc) (*GranularGauge[L], error) {
 	labels, constrained, err := getVariableLabels[L](&opts)
 	if err != nil {
 		return nil, err
@@ -70,9 +72,12 @@ func NewGranularGauge[L FilteredLabels](opts Opts, init func()) (*GranularGauge[
 		metric.WithLabelValues(lvs...).Set(0)
 	}
 
-	// if metric is constrained, default to initializing all combinations of labels
+	// If metric is constrained, default to initializing all combinations of
+	// labels. Note that in such case the initialization function doesn't
+	// reference the wrapped metric passed as an argument because this metric
+	// is captured already in initMetric closure.
 	if constrained && init == nil {
-		init = func() {
+		init = func(_ *prometheus.GaugeVec) {
 			initAllCombinations(initMetric, opts.ConstrainedLabels)
 		}
 	}
@@ -108,7 +113,7 @@ func MustNewGranularGauge[L FilteredLabels](promOpts prometheus.GaugeOpts, extra
 
 // MustNewGranularGaugeWithInit is a convenience function that wraps
 // NewGranularGauge and panics on error.
-func MustNewGranularGaugeWithInit[L FilteredLabels](opts Opts, init func()) *GranularGauge[L] {
+func MustNewGranularGaugeWithInit[L FilteredLabels](opts Opts, init initGaugeFunc) *GranularGauge[L] {
 	metric, err := NewGranularGauge[L](opts, init)
 	if err != nil {
 		panic(err)
@@ -134,7 +139,7 @@ func (m *GranularGauge[L]) IsConstrained() bool {
 // Init implements CollectorWithInit.
 func (m *GranularGauge[L]) Init() {
 	if m.initFunc != nil {
-		m.initFunc()
+		m.initFunc(m.metric)
 	}
 }
 
@@ -171,7 +176,7 @@ type Gauge struct {
 // NewGauge creates a new Gauge.
 //
 // See NewGranularCounter for usage notes.
-func NewGauge(opts Opts, init func()) (*Gauge, error) {
+func NewGauge(opts Opts, init initGaugeFunc) (*Gauge, error) {
 	metric, err := NewGranularGauge[NilLabels](opts, init)
 	if err != nil {
 		return nil, err
@@ -181,7 +186,7 @@ func NewGauge(opts Opts, init func()) (*Gauge, error) {
 
 // MustNewGauge is a convenience function that wraps NewGauge and panics on
 // error.
-func MustNewGauge(opts Opts, init func()) *Gauge {
+func MustNewGauge(opts Opts, init initGaugeFunc) *Gauge {
 	metric, err := NewGauge(opts, init)
 	if err != nil {
 		panic(err)

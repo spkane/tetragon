@@ -7,6 +7,8 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
+type initHistogramFunc func(*prometheus.HistogramVec)
+
 // NewHistogramVecWithPod is a wrapper around prometheus.NewHistogramVec that also
 // registers the metric to be cleaned up when a pod is deleted.
 //
@@ -35,14 +37,14 @@ func NewHistogramVecWithPodV2(opts prometheus.HistogramVecOpts) *prometheus.Hist
 type GranularHistogram[L FilteredLabels] struct {
 	metric      *prometheus.HistogramVec
 	constrained bool
-	initFunc    func()
+	initFunc    initHistogramFunc
 	initForDocs func()
 }
 
 // NewGranularHistogram creates a new GranularHistogram.
 //
 // See NewGranularCounter for usage notes.
-func NewGranularHistogram[L FilteredLabels](opts HistogramOpts, init func()) (*GranularHistogram[L], error) {
+func NewGranularHistogram[L FilteredLabels](opts HistogramOpts, init initHistogramFunc) (*GranularHistogram[L], error) {
 	labels, constrained, err := getVariableLabels[L](&opts.Opts)
 	if err != nil {
 		return nil, err
@@ -71,9 +73,12 @@ func NewGranularHistogram[L FilteredLabels](opts HistogramOpts, init func()) (*G
 		metric.WithLabelValues(lvs...)
 	}
 
-	// if metric is constrained, default to initializing all combinations of labels
+	// If metric is constrained, default to initializing all combinations of
+	// labels. Note that in such case the initialization function doesn't
+	// reference the wrapped metric passed as an argument because this metric
+	// is captured already in initMetric closure.
 	if constrained && init == nil {
-		init = func() {
+		init = func(_ *prometheus.HistogramVec) {
 			initAllCombinations(initMetric, opts.ConstrainedLabels)
 		}
 	}
@@ -118,7 +123,7 @@ func MustNewGranularHistogram[L FilteredLabels](promOpts prometheus.HistogramOpt
 
 // MustNewGranularHistogramWithInit is a convenience function that wraps
 // NewGranularHistogram and panics on error.
-func MustNewGranularHistogramWithInit[L FilteredLabels](opts HistogramOpts, init func()) *GranularHistogram[L] {
+func MustNewGranularHistogramWithInit[L FilteredLabels](opts HistogramOpts, init initHistogramFunc) *GranularHistogram[L] {
 	metric, err := NewGranularHistogram[L](opts, init)
 	if err != nil {
 		panic(err)
@@ -144,7 +149,7 @@ func (m *GranularHistogram[L]) IsConstrained() bool {
 // Init implements CollectorWithInit.
 func (m *GranularHistogram[L]) Init() {
 	if m.initFunc != nil {
-		m.initFunc()
+		m.initFunc(m.metric)
 	}
 }
 
@@ -181,7 +186,7 @@ type Histogram struct {
 // NewHistogram creates a new Histogram.
 //
 // See NewGranularCounter for usage notes.
-func NewHistogram(opts HistogramOpts, init func()) (*Histogram, error) {
+func NewHistogram(opts HistogramOpts, init initHistogramFunc) (*Histogram, error) {
 	metric, err := NewGranularHistogram[NilLabels](opts, init)
 	if err != nil {
 		return nil, err
@@ -191,7 +196,7 @@ func NewHistogram(opts HistogramOpts, init func()) (*Histogram, error) {
 
 // MustNewHistogram is a convenience function that wraps NewHistogram and panics on
 // error.
-func MustNewHistogram(opts HistogramOpts, init func()) *Histogram {
+func MustNewHistogram(opts HistogramOpts, init initHistogramFunc) *Histogram {
 	metric, err := NewHistogram(opts, init)
 	if err != nil {
 		panic(err)

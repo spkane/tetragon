@@ -3,11 +3,11 @@
 
 package metrics
 
-type initMetricFunc func(...string)
+type initLabelValuesFunc func(...string)
 
 // initAllCombinations initializes a metric with all possible combinations of
 // label values.
-func initAllCombinations(initMetric initMetricFunc, labels []ConstrainedLabel) {
+func initAllCombinations(initMetric initLabelValuesFunc, labels []ConstrainedLabel) {
 	initCombinations(initMetric, labels, make([]string, len(labels)), 0)
 }
 
@@ -20,7 +20,7 @@ func initAllCombinations(initMetric initMetricFunc, labels []ConstrainedLabel) {
 // - cursor is in the range [0, len(labels)]
 //
 // If any of these is not met, the function will do nothing.
-func initCombinations(initMetric initMetricFunc, labels []ConstrainedLabel, lvs []string, cursor int) {
+func initCombinations(initMetric initLabelValuesFunc, labels []ConstrainedLabel, lvs []string, cursor int) {
 	if initMetric == nil || len(labels) != len(lvs) || cursor < 0 || cursor > len(labels) {
 		// The function was called with invalid arguments. Silently return.
 		return
@@ -43,7 +43,7 @@ func initCombinations(initMetric initMetricFunc, labels []ConstrainedLabel, lvs 
 // metrics server - but here we care only about extracting labels for
 // documentation, so we don't try to make the metrics realistic.
 func initForDocs[L FilteredLabels](
-	initMetric initMetricFunc, constrained []ConstrainedLabel, unconstrained []UnconstrainedLabel,
+	initMetric initLabelValuesFunc, constrained []ConstrainedLabel, unconstrained []UnconstrainedLabel,
 ) {
 	var dummy L
 	commonLabels := dummy.Keys()
