@@ -73,7 +73,7 @@ func initForDocs[L FilteredLabels](
 	// third unconstrained labels
 	current = current[len(constrained):]
 	for i := range unconstrained {
-		current[len(constrained)+i] = unconstrained[i].ExampleValue
+		current[i] = unconstrained[i].ExampleValue
 		initMetric(lvs...)
 	}
 }
