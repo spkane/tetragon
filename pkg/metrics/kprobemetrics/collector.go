@@ -5,6 +5,7 @@ package kprobemetrics
 
 import (
 	"github.com/cilium/ebpf/link"
+	"github.com/cilium/tetragon/pkg/bpf"
 	"github.com/cilium/tetragon/pkg/sensors"
 	"github.com/cilium/tetragon/pkg/sensors/program"
 	"github.com/prometheus/client_golang/prometheus"
@@ -37,6 +38,9 @@ func collectLink(ch chan<- prometheus.Metric, load *program.Program) {
 
 	switch info.Type {
 	case link.PerfEventType:
+		if !bpf.HasMissedStatsPerfEvent() {
+			return
+		}
 		pevent := info.PerfEvent()
 		switch pevent.Type {
 		case unix.BPF_PERF_EVENT_KPROBE, unix.BPF_PERF_EVENT_KRETPROBE:
@@ -44,6 +48,9 @@ func collectLink(ch chan<- prometheus.Metric, load *program.Program) {
 			missed, _ = kprobe.Missed()
 		}
 	case link.KprobeMultiType:
+		if !bpf.HasMissedStatsKprobeMulti() {
+			return
+		}
 		kmulti := info.KprobeMulti()
 		missed, _ = kmulti.Missed()
 	default:
