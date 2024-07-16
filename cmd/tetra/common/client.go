@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/cilium/tetragon/api/v1/tetragon"
 	"google.golang.org/grpc"
@@ -15,7 +16,7 @@ import (
 )
 
 func CliRunErr(fn func(ctx context.Context, cli tetragon.FineGuidanceSensorsClient), fnErr func(err error)) {
-	c, err := NewClientWithDefaultContext()
+	c, err := NewClientWithDefaultContextAndAddress()
 	if err != nil {
 		fnErr(err)
 		return
@@ -41,23 +42,29 @@ func (c ClientWithContext) Close() {
 	c.cancel()
 }
 
-// NewClientWithDefaultContext return a client to a tetragon server accompanied
-// with an initialized context that can be used for the RPC call, caller must
-// call Close() on the client.
-func NewClientWithDefaultContext() (*ClientWithContext, error) {
-	c := &ClientWithContext{}
-
-	var timeout context.Context
-	timeout, c.cancel = context.WithTimeout(context.Background(), Timeout)
-	// we don't need the cancelFunc here as calling cancel on timeout, the
-	// parent, will cancel its children.
-	c.Ctx, _ = signal.NotifyContext(timeout, syscall.SIGINT, syscall.SIGTERM)
-
+// NewClientWithDefaultContextAndAddress returns a client to a tetragon
+// server after resolving the server address using helpers, accompanied with an
+// initialized context that can be used for the RPC call, caller must call
+// Close() on the client.
+func NewClientWithDefaultContextAndAddress() (*ClientWithContext, error) {
 	address, err := ResolveServerAddress()
 	if err != nil {
 		return nil, fmt.Errorf("failed to resolve server address: %w", err)
 	}
 
+	return NewClient(context.Background(), address, Timeout)
+}
+
+func NewClient(ctx context.Context, address string, timeout time.Duration) (*ClientWithContext, error) {
+	c := &ClientWithContext{}
+
+	var timeoutContext context.Context
+	timeoutContext, c.cancel = context.WithTimeout(ctx, timeout)
+	// we don't need the cancelFunc here as calling cancel on timeout, the
+	// parent, will cancel its children.
+	c.Ctx, _ = signal.NotifyContext(timeoutContext, syscall.SIGINT, syscall.SIGTERM)
+
+	var err error
 	c.conn, err = grpc.NewClient(address, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create gRPC client with address %s: %w", address, err)
